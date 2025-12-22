@@ -238,8 +238,8 @@ const startSock = async() => {
 						}
 
 						// Anti-image feature: Delete image messages in groups where anti-image is enabled
-						const remoteJid = msg.key.remoteJid!
-						if (isJidGroup(remoteJid) && antiImageGroups.has(remoteJid)) {
+						const groupJid = msg.key.remoteJid!
+						if (isJidGroup(groupJid) && antiImageGroups.has(groupJid)) {
 							// Check if the message contains an image
 							const hasImage = msg.message?.imageMessage ||
 								msg.message?.viewOnceMessage?.message?.imageMessage ||
@@ -247,16 +247,18 @@ const startSock = async() => {
 								msg.message?.ephemeralMessage?.message?.imageMessage
 
 							if (hasImage && !msg.key.fromMe) {
-								console.log('Anti-image: Deleting image message in group', remoteJid)
+								console.log('Anti-image: Deleting image message in group', groupJid)
 								try {
 									// Delete the message for everyone
-									await sock.sendMessage(remoteJid, { delete: msg.key })
-									// Optionally notify the user
-									const participant = msg.key.participant || msg.key.remoteJid
-									await sock.sendMessage(remoteJid, {
-										text: `🚫 @${participant?.split('@')[0]}, images are not allowed in this group!`,
-										mentions: participant ? [participant] : []
-									})
+									await sock.sendMessage(groupJid, { delete: msg.key })
+									// Notify the user (participant is required in group messages)
+									const participant = msg.key.participant
+									if (participant) {
+										await sock.sendMessage(groupJid, {
+											text: `🚫 @${participant.split('@')[0]}, images are not allowed in this group!`,
+											mentions: [participant]
+										})
+									}
 								} catch (err) {
 									console.error('Failed to delete image message:', err)
 								}
