@@ -1,7 +1,7 @@
 import { Boom } from '@hapi/boom'
 import NodeCache from '@cacheable/node-cache'
 import readline from 'readline'
-import makeWASocket, { AnyMessageContent, BinaryInfo, delay, DisconnectReason, downloadAndProcessHistorySyncNotification, encodeWAM, fetchLatestBaileysVersion, getAggregateVotesInPollMessage, getHistoryMsg, isJidNewsletter, makeCacheableSignalKeyStore, proto, useMultiFileAuthState, WAMessageContent, WAMessageKey } from '../src'
+import makeWASocket, { AnyMessageContent, BinaryInfo, delay, DisconnectReason, downloadAndProcessHistorySyncNotification, encodeWAM, fetchLatestBaileysVersion, getAggregateVotesInPollMessage, getHistoryMsg, isJidGroup, isJidNewsletter, makeCacheableSignalKeyStore, proto, useMultiFileAuthState, WAMessageContent, WAMessageKey } from '../src'
 //import MAIN_LOGGER from '../src/Utils/logger'
 import open from 'open'
 import fs from 'fs'
@@ -18,6 +18,10 @@ const usePairingCode = process.argv.includes('--use-pairing-code')
 const msgRetryCounterCache = new NodeCache()
 
 const onDemandMap = new Map<string, string>()
+
+// Anti-image feature: Store groups where image messages should be automatically deleted
+// In a production bot, this would be persisted to a database
+const antiImageGroups = new Set<string>()
 
 // Read line interface
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
@@ -207,6 +211,55 @@ const startSock = async() => {
 							if (text == "onDemandHistSync") {
 								const messageId = await sock.fetchMessageHistory(50, msg.key, msg.messageTimestamp!)
 								console.log('requested on-demand sync, id=', messageId)
+							}
+
+							// Anti-image commands: !anti-image 1 to enable, !anti-image 0 to disable
+							const remoteJid = msg.key.remoteJid!
+							if (isJidGroup(remoteJid) && text?.startsWith('!anti-image ')) {
+								const arg = text.split(' ')[1]
+								if (arg === '1') {
+									if (antiImageGroups.has(remoteJid)) {
+										await sock.sendMessage(remoteJid, { text: '⚠️ Anti-image is already enabled for this group!' })
+									} else {
+										antiImageGroups.add(remoteJid)
+										await sock.sendMessage(remoteJid, { text: '✅ Anti-image enabled! Image messages will be automatically deleted.' })
+									}
+								} else if (arg === '0') {
+									if (!antiImageGroups.has(remoteJid)) {
+										await sock.sendMessage(remoteJid, { text: '⚠️ Anti-image is already disabled for this group!' })
+									} else {
+										antiImageGroups.delete(remoteJid)
+										await sock.sendMessage(remoteJid, { text: '✅ Anti-image disabled! Image messages will no longer be deleted.' })
+									}
+								} else {
+									await sock.sendMessage(remoteJid, { text: '❌ Invalid parameter! Use !anti-image 1 to enable or !anti-image 0 to disable.' })
+								}
+							}
+						}
+
+						// Anti-image feature: Delete image messages in groups where anti-image is enabled
+						const remoteJid = msg.key.remoteJid!
+						if (isJidGroup(remoteJid) && antiImageGroups.has(remoteJid)) {
+							// Check if the message contains an image
+							const hasImage = msg.message?.imageMessage ||
+								msg.message?.viewOnceMessage?.message?.imageMessage ||
+								msg.message?.viewOnceMessageV2?.message?.imageMessage ||
+								msg.message?.ephemeralMessage?.message?.imageMessage
+
+							if (hasImage && !msg.key.fromMe) {
+								console.log('Anti-image: Deleting image message in group', remoteJid)
+								try {
+									// Delete the message for everyone
+									await sock.sendMessage(remoteJid, { delete: msg.key })
+									// Optionally notify the user
+									const participant = msg.key.participant || msg.key.remoteJid
+									await sock.sendMessage(remoteJid, {
+										text: `🚫 @${participant?.split('@')[0]}, images are not allowed in this group!`,
+										mentions: participant ? [participant] : []
+									})
+								} catch (err) {
+									console.error('Failed to delete image message:', err)
+								}
 							}
 						}
 
