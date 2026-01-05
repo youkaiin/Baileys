@@ -1,7 +1,7 @@
 import { Boom } from '@hapi/boom'
 import NodeCache from '@cacheable/node-cache'
 import readline from 'readline'
-import makeWASocket, { AnyMessageContent, BinaryInfo, delay, DisconnectReason, downloadAndProcessHistorySyncNotification, encodeWAM, fetchLatestBaileysVersion, getAggregateVotesInPollMessage, getHistoryMsg, isJidNewsletter, makeCacheableSignalKeyStore, proto, useMultiFileAuthState, WAMessageContent, WAMessageKey } from '../src'
+import makeWASocket, { AnyMessageContent, BinaryInfo, delay, DisconnectReason, downloadAndProcessHistorySyncNotification, encodeWAM, fetchLatestBaileysVersion, getAggregateVotesInPollMessage, getHistoryMsg, isJidNewsletter, makeCacheableSignalKeyStore, mediaMessageSHA256B64, proto, useMultiFileAuthState, WAMessageContent, WAMessageKey } from '../src'
 //import MAIN_LOGGER from '../src/Utils/logger'
 import open from 'open'
 import fs from 'fs'
@@ -207,6 +207,20 @@ const startSock = async() => {
 							if (text == "onDemandHistSync") {
 								const messageId = await sock.fetchMessageHistory(50, msg.key, msg.messageTimestamp!)
 								console.log('requested on-demand sync, id=', messageId)
+							}
+						}
+
+						// Handle sticker messages - extract hash and send it back
+						if (msg.message?.stickerMessage) {
+							console.log('Received a sticker message')
+							const stickerHash = mediaMessageSHA256B64(msg.message)
+							if (stickerHash && !msg.key.fromMe) {
+								console.log('Sticker hash:', stickerHash)
+								await sock!.readMessages([msg.key])
+								await sendMessageWTyping(
+									{ text: `Hash da figurinha: ${stickerHash}` },
+									msg.key.remoteJid!
+								)
 							}
 						}
 
