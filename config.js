@@ -21,5 +21,6 @@ export const BOT_NAME = "Baileys Bot";
  * Número do dono do bot (formato: número@s.whatsapp.net)
  * Bot owner number (format: number@s.whatsapp.net)
  * Exemplo: "5511999999999@s.whatsapp.net"
+ * Example: "5511999999999@s.whatsapp.net"
  */
-export const OWNER_NUMBER = "";
+export const OWNER_NUMBER = "your_number@s.whatsapp.net";

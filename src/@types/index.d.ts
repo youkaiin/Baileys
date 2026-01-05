@@ -1,5 +1,7 @@
-import { WASocket } from '../index'
-import { WAMessage, proto } from '../../WAProto'
+import type { WASocket } from '../Types/Socket'
+import type { WAMessage } from '../Types/Message'
+import type { GroupMetadata } from '../Types/GroupMetadata'
+import { proto } from '../../WAProto'
 
 /**
  * Propriedades disponíveis no handle de um comando
@@ -28,7 +30,7 @@ export interface CommandHandleProps {
     isGroup: boolean
     
     /** Metadados do grupo (se aplicável) / Group metadata (if applicable) */
-    groupMetadata?: any
+    groupMetadata?: GroupMetadata
     
     /** Se o remetente é administrador do grupo / Whether the sender is a group admin */
     isAdmin?: boolean
